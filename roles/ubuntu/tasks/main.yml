@@ -1,0 +1,108 @@
+---
+#NTP
+- name: Install NTP
+  apt:
+    name: ntp
+    state: present
+
+- name: Enable and Start NTP service
+  systemd:
+    name: ntp
+    enabled: yes
+    state: started
+
+# OpenStack package
+- name: Install OpenStack packages
+  apt:
+    name: python3-openstackclient
+    state: latest
+
+#SQL Database
+- name: Install MariaDB server
+  apt:
+    name: mariadb-server
+    state: present
+
+- name: Install Python3 PyMySQL
+  apt:
+    name: python3-pymysql
+    state: present
+
+- name: Copy mariadb.conf.j2
+  template:
+    src: roles/ubuntu/templates/mariadb.conf.j2
+    dest: /etc/mysql/mariadb.conf.d/99-openstack.cnf
+
+- name: Restart MariaDB
+  service:
+    name: mariadb
+    state: restarted
+
+#Message queue
+- name: Install RabbitMQ Server
+  apt:
+    name: rabbitmq-server
+    state: present
+
+- name: Check if the RabbitMQ user exists
+  command: rabbitmqctl list_users
+  register: rabbitmq_users
+  changed_when: False
+  ignore_errors: True
+
+- name: Remove RabbitMQ User
+  command: "rabbitmqctl delete_user openstack"
+  ignore_errors: yes
+  changed_when: false
+
+- name: Add RabbitMQ User
+  command: "rabbitmqctl add_user openstack RABBIT_PASS"
+  ignore_errors: yes
+  changed_when: false
+
+- name: Set RabbitMQ Permissions
+  command: "rabbitmqctl set_permissions openstack '.*' '.*' '.*'"
+  ignore_errors: yes
+  changed_when: false
+
+#Memcached
+- name: Install Memcached and Python3 Memcache library
+  apt:
+    name:
+       - memcached
+       - python3-memcache
+    state: present
+
+- name: Copy Memcached configuration file
+  template:
+    src: roles/ubuntu/templates/memcached.conf.j2
+    dest: /etc/memcached.conf
+    mode: 0644
+
+- name: Restart Memcached service
+  service:
+    name: memcached
+    enabled: yes
+    state: started
+
+#Etcd
+- name: Add Universe repository
+  apt_repository:
+    repo: "deb http://archive.ubuntu.com/ubuntu {{ ansible_distribution_release }} universe"
+    state: present
+
+- name: Install etcd
+  apt:
+    name: etcd
+    state: present
+
+- name: Copy etcd configuration file
+  template:
+    src: roles/ubuntu/templates/etcd.conf.j2
+    dest: /etc/default/etcd
+
+- name: Enable and start etcd service
+  service:
+    name: etcd
+    enabled: yes
+    state: restarted

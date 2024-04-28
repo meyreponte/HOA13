@@ -1,0 +1,146 @@
+---
+#NTP
+- name: Install NTP
+  yum:
+    name: ntp
+    state: present
+
+- name: Enable and Start NTP service
+  systemd:
+    name: ntpd
+    enabled: yes
+    state: started
+
+ #OpenStack package
+- name: Install centos-release-openstack-train package
+  yum:
+    name: centos-release-openstack-train
+    state: present
+
+- name: Install python-openstackclient
+  yum:
+    name: python-openstackclient
+    state: present
+
+- name: Install openstack-selinux
+  yum:
+    name: openstack-selinux
+    state: present
+
+#SQL Database
+- name: Install MariaDB packages
+  yum:
+    name:
+      - mariadb
+      - mariadb-server
+      - python2-PyMySQL
+    state: present
+
+- name: Backup existing configuration files
+  command: rsync -a --exclude=/backup /etc/my.cnf.d/ /etc/my.cnf.d/backup/
+
+  ignore_errors: yes
+
+- name: Create and edit openstack.cnf file
+  blockinfile:
+    path: /etc/my.cnf.d/openstack.cnf
+    create: yes
+    block: |
+      [mysqld]
+      bind-address = 192.168.56.107
+      default-storage-engine = innodb
+      innodb_file_per_table = on
+      max_connections = 4096
+      collation-server = utf8_general_ci
+      character-set-server = utf8
+
+- name: Enable MariaDB service
+  systemd:
+    name: mariadb
+    enabled: yes
+    state: started
+
+#Message queue
+- name: Install RabbitMQ server
+  yum:
+    name: rabbitmq-server
+    state: present
+
+- name: Run RabbitMQ service
+  systemd:
+    name: rabbitmq-server
+    state: started
+
+- name: Configure RabbitMQ
+  command: rabbitmq-plugins enable rabbitmq_management
+
+- name: Remove RabbitMQ User
+  command: "rabbitmqctl delete_user openstack"
+  ignore_errors: yes
+  changed_when: false
+
+- name: Add RabbitMQ user
+  command: rabbitmqctl add_user openstack RABBIT_PASS
+  ignore_errors: yes
+
+- name: Set RabbitMQ permissions
+  command: rabbitmqctl set_permissions openstack ".*" ".*" ".*"
+
+- name: Enable RabbitMQ service
+  systemd:
+    name: rabbitmq-server
+    enabled: yes
+    state: started
+
+#Memcached
+- name: Install Memcached and Python Memcached
+  yum:
+    name:
+      - memcached
+      - python-memcached
+    state: present
+
+- name: Configure Memcached
+  lineinfile:
+    path: /etc/sysconfig/memcached
+    line: 'OPTIONS="-l 192.168.56.107,::1,localhost.localdomain"'
+
+- name: Restart Memcached
+  systemd:
+    name: memcached
+    state: restarted
+
+- name: Enable ans Start Memcached
+  systemd:
+    name: memcached
+    enabled: yes
+    state: started
+
+#etcd
+- name: Install etcd
+  yum:
+    name: etcd
+    state: present
+
+- name: Configure etcd
+  blockinfile:
+    path: /etc/etcd/etcd.conf
+    block: |
+      #[Member]
+      ETCD_DATA_DIR="/var/lib/etcd/default.etcd"
+      ETCD_LISTEN_PEER_URLS="http://192.168.56.106:2380"
+      ETCD_LISTEN_CLIENT_URLS="http://192.168.56.106:2379"
+      ETCD_NAME="controller"
+
+      #[Clustering]
+      ETCD_INITIAL_ADVERTISE_PEER_URLS="http://192.168.56.106:2380"
+      ETCD_ADVERTISE_CLIENT_URLS="http://192.168.56.106:2379"
+      ETCD_INITIAL_CLUSTER="controller=http://192.168.56.106:2380"
+      ETCD_INITIAL_CLUSTER_TOKEN="etcd-cluster-01"
+      ETCD_INITIAL_CLUSTER_STATE="new"
+
+- name: Enable and Start etcd service
+  systemd:
+    name: etcd
+    enabled: yes
+    state: started
