@@ -47,7 +47,7 @@
     create: yes
     block: |
       [mysqld]
-      bind-address = 192.168.56.107
+      bind-address = 192.168.56.106
       default-storage-engine = innodb
       innodb_file_per_table = on
       max_connections = 4096
@@ -103,7 +103,7 @@
 - name: Configure Memcached
   lineinfile:
     path: /etc/sysconfig/memcached
-    line: 'OPTIONS="-l 192.168.56.107,::1,localhost.localdomain"'
+    line: 'OPTIONS="-l 192.168.56.106,::1,localhost.localdomain"'
 
 - name: Restart Memcached
   systemd:
